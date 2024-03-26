@@ -46,6 +46,8 @@ schema.pre("save", async function (next) {
     return next();
   }
 
+  schema.index({ opt_expiry: 1 }, { expireAfterSeconds: 0 });
+
   const hashedPassword = await bcrypt.hash(this.password, 10);
   this.password = hashedPassword;
   next();
