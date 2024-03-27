@@ -22,3 +22,7 @@ app.use(cors());
 
 //apis
 app.use("/api/v1", userRouter);
+
+app.get("/", (req, res) => {
+  res.send("Hello from server");
+});
