@@ -2,11 +2,13 @@ import { User } from "../models/users.js";
 import { sendMail } from "../utils/sendMail.js";
 import { sendToken } from "../utils/sendToken.js";
 import bcrypt from "bcrypt";
+import cloudinary from "cloudinary";
+import fs from "fs";
 
 export const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
-    // const { avatar } = req.files;
+    const avatar = req.files.avatar.tempFilePath;
 
     if (!email || !password || !name) {
       return res.status(200).json({
@@ -24,6 +26,12 @@ export const register = async (req, res, next) => {
       });
     }
 
+    const mycloud = await cloudinary.v2.uploader.upload(avatar, {
+      folder: "todoApp",
+    });
+
+    fs.rmSync("./tmp", { recursive: true });
+
     const otp = Math.floor(Math.random() * 1000000);
 
     user = await User.create({
@@ -31,8 +39,8 @@ export const register = async (req, res, next) => {
       email,
       password,
       avatar: {
-        public_id: "sdfsd",
-        url: "sdfsdf",
+        public_id: mycloud.public_id,
+        url: mycloud.secure_url,
       },
       otp,
       otp_expiry: new Date(Date.now() + process.env.OTP_EXPIRE * 60 * 1000),
@@ -238,12 +246,25 @@ export const updateProfile = async (req, res, next) => {
     const user = await User.findById(req.user._id);
 
     const { name } = req.body;
-    // const { avatar } = req.files;
-
-    // if(avatar)
+    const avatar = req.files.avatar.tempFilePath;
 
     if (name) {
       user.name = name;
+    }
+
+    if (avatar) {
+      await cloudinary.v2.uploader.destroy(user.avatar.public_id);
+
+      const mycloud = await cloudinary.v2.uploader.upload(avatar, {
+        folder: "todoApp",
+      });
+
+      fs.rmSync("./tmp", { recursive: true });
+
+      user.avatar = {
+        public_id: mycloud.public_id,
+        url: mycloud.secure_url,
+      };
     }
 
     await user.save();
