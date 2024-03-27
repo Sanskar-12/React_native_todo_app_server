@@ -38,7 +38,9 @@ const schema = new mongoose.Schema({
     default: false,
   },
   otp: Number,
-  opt_expiry: Date,
+  otp_expiry: Date,
+  resetPasswordOtp: Number,
+  reset_password_otp_expiry: Date,
 });
 
 schema.pre("save", async function (next) {
@@ -46,11 +48,11 @@ schema.pre("save", async function (next) {
     return next();
   }
 
-  schema.index({ opt_expiry: 1 }, { expireAfterSeconds: 0 });
-
   const hashedPassword = await bcrypt.hash(this.password, 10);
   this.password = hashedPassword;
   next();
 });
+
+schema.index({ otp_expiry: 1 }, { expireAfterSeconds: 0 });
 
 export const User = mongoose.model("User", schema);

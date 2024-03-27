@@ -35,7 +35,7 @@ export const register = async (req, res, next) => {
         url: "sdfsdf",
       },
       otp,
-      opt_expiry: new Date(Date.now() + process.env.OTP_EXPIRE * 60 * 1000),
+      otp_expiry: new Date(Date.now() + process.env.OTP_EXPIRE * 60 * 1000),
     });
 
     await sendMail(
@@ -64,7 +64,7 @@ export const verify = async (req, res, next) => {
 
     const user = await User.findById(req.user._id);
 
-    if (user.otp !== otp || user.opt_expiry < Date.now()) {
+    if (user.otp !== otp || user.otp_expiry < Date.now()) {
       return res.status(400).json({
         success: false,
         message: "Otp is Invalid or It has been expired",
@@ -73,7 +73,7 @@ export const verify = async (req, res, next) => {
 
     user.verified = true;
     user.otp = null;
-    user.opt_expiry = null;
+    user.otp_expiry = null;
 
     await user.save();
 
@@ -211,6 +211,157 @@ export const updateTask = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Task updated Successfully",
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const getMyProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    sendToken(res, user, 200, `Welcome back, ${user.name}`);
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const updateProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    const { name } = req.body;
+    // const { avatar } = req.files;
+
+    // if(avatar)
+
+    if (name) {
+      user.name = name;
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile Updated Successfully",
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const updatePassword = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select("+password");
+
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword && !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Please Fill all Feilds",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+
+    if (!isMatch) {
+      return res.status(200).json({
+        success: false,
+        message: "Invalid password",
+      });
+    }
+
+    user.password = newPassword;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Password Updated Successfully",
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const forgetPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(200).json({
+        success: false,
+        message: "Invalid Email",
+      });
+    }
+
+    const otp = Math.floor(Math.random() * 1000000);
+
+    user.resetPasswordOtp = otp;
+    user.reset_password_otp_expiry = new Date(
+      Date.now() + process.env.OTP_EXPIRE * 60 * 1000
+    );
+    await user.save();
+
+    await sendMail(
+      email,
+      "Reset Password OTP",
+      `Your OTP for reseting the password is ${otp}, If you did not request for this, please Ignore this!`
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `OTP sent to ${email}`,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const resetPassword = async (req, res, next) => {
+  try {
+    const otp = Number(req.body.otp);
+    const { newPassword } = req.body;
+
+    const user = await User.findOne({
+      resetPasswordOtp: otp,
+      reset_password_otp_expiry: { $gt: Date.now() },
+    }).select("+password");
+
+    if (!user) {
+      return res.status(200).json({
+        success: false,
+        message: "Otp is Invalid or has been expired",
+      });
+    }
+
+    user.password = newPassword;
+    user.resetPasswordOtp = null;
+    user.reset_password_otp_expiry = null;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Password resetted Successfully, You can now login!`,
     });
   } catch (error) {
     return res.status(400).json({
